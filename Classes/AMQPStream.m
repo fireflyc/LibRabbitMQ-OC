@@ -1,7 +1,20 @@
-//
-// Created by fireflyc 
-//
-
+/*
+ * Copyright 2015 The original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * @author fireflyc
+ */
 #import "AMQPStream.h"
 #import "AMQP.h"
 
@@ -120,18 +133,51 @@
 }
 
 - (void)AMQPWriteDate:(NSDate *)date {
-    UInt64 times = [date timeIntervalSince1970];
+    UInt64 times = (UInt64)[date timeIntervalSince1970];
     [self AMQPWriteUInt64:times];
 }
 
-- (void)AMQPWriteNSDictionary:(NSDictionary *)val {
-    [self AMQPWriteUInt32:0];//太麻烦了
-    /*AMQPOutputStream *dictOut = [AMQPOutputStream new];
-    for (NSString *key in [val allKeys]){
-        [dictOut AMQPWriteShortStr:key];
-    }
-    [self AMQPWriteUInt32:<#(UInt32)val#>];*/
+- (void)AMQPWriteNSDictionary:(NSDictionary *)val {/*
+    if (val == nil) {
+        [self AMQPWriteUInt32:0];
+    } else {
+        [self AMQPWriteUInt32:val.count];
+        for (NSString *key in val) {
+            [self AMQPWriteShortStr:key];
+            id v = val[key];
+            [self AMQPWriteValue:v];
+        }
+    }*/
+    [self AMQPWriteUInt32:0];
 
+}
+
+- (void)AMQPWriteValue:(id)val {
+    if ([val isKindOfClass:[NSString class]]) {
+        NSString *s = val;
+        [self AMQPWriteUInt8:'S'];
+        if (s.length <= 255) {
+            [self AMQPWriteShortStr:val];
+        } else {
+            [self AMQPWriteLongStr:val];
+        }
+    }
+    if ([val isKindOfClass:[NSNumber class]]) {
+        NSNumber *number = val;
+        long long l = number.longLongValue;
+        if (l > 0 && l <= UINT32_MAX) {
+            [self AMQPWriteUInt8:'I'];
+            [self AMQPWriteUInt32:number.unsignedIntValue];
+        }
+        if (l > 0 && l <= UINT8_MAX) {
+            [self AMQPWriteUInt8:'b'];
+            [self AMQPWriteUInt8:number.unsignedCharValue];
+        }
+        if (l > 0 && l <= UINT64_MAX) {
+            [self AMQPWriteUInt8:'d'];
+            [self AMQPWriteUInt64:number.unsignedLongValue];
+        }
+    }
 }
 
 - (instancetype)init {
@@ -227,7 +273,7 @@
         case 'D': {
             UInt8 scale = [inputStream AMQPReadUInt8];
             UInt32 unscaled = [inputStream AMQPReadUInt32];
-            break;
+            return [NSDecimalNumber decimalNumberWithMantissa:unscaled exponent:scale isNegative:NO];
         }
         case 'T': {
             UInt64 secs = [inputStream AMQPReadUInt64] * 1000;
@@ -251,10 +297,10 @@
             return @([inputStream AMQPReadUInt8]);
         }
         case 'd': {
-            return @([inputStream AMQPReadUInt64]);
+            return @((double)[inputStream AMQPReadUInt64]);
         }
         case 'f': {
-            return @([inputStream AMQPReadUInt32]);
+            return @((float)[inputStream AMQPReadUInt32]);
         }
         case 'l': {
             return @([inputStream AMQPReadUInt64]);

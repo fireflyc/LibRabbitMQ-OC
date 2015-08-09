@@ -1,6 +1,20 @@
-//
-// Created by fireflyc 
-//
+/*
+ * Copyright 2015 The original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * @author fireflyc
+ */
 
 #import "AMQPConnection.h"
 
@@ -33,7 +47,7 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
     if (self) {
         self.socket = [[GCDAsyncSocket alloc] initWithDelegate:self
                                                  delegateQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)];
-        //初始化变量
+
         self.host = host;
         self.port = port;
         self.heartbeat = heartbeat;
@@ -52,8 +66,9 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
         self.readTimeout = 5;
         self.maxChannel = UINT16_MAX;
         self.nextChannel = 1;
+        self.maxFrame = 131072; //最小128k
 
-        //准备心跳
+        //start heartbeat
         self.heartBeatTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
                 dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0));
 
@@ -64,7 +79,7 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
             if (!weakSelf.socket.isConnected) {
                 NSError *error = nil;
                 if (![weakSelf connectionWithTimeout:3 error:&error]) {
-                    NSLog(@"Connection error %@", error);
+                    NSLog(@"Connection Error %@", error);
                 }else{
                     [weakSelf.lifecycleDelegate reconnectionSuccess:weakSelf.userName :weakSelf];
                 }
@@ -135,7 +150,7 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
     ConnectionTune *tune = (ConnectionTune *) command.method;
     ConnectionTuneOk *tuneOk = [ConnectionTuneOk new];
     self.maxChannel = MAX(self.maxChannel, tune.channelMax);
-    self.maxFrame = MAX(self.maxFrame, tune.frameMax);
+    self.maxFrame = MIN(self.maxFrame, tune.frameMax);
     tuneOk.channelMax = self.maxChannel;
     tuneOk.frameMax = self.maxFrame;
     tuneOk.heartbeat = self.heartbeat;

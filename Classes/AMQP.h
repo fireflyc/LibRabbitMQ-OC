@@ -11,6 +11,7 @@
 #define AMQP_FRAME_METHOD 1
 #define AMQP_FRAME_HEADER 2
 #define AMQP_FRAME_BODY 3
+#define AMQP_FRAME_EMPTY_SIZE 8
 #define AMQP_FRAME_HEARTBEAT 8
 #define AMQP_FRAME_MIN_SIZE 4096
 #define AMQP_FRAME_END 206
@@ -34,6 +35,7 @@
 #define AMQP_NOT_IMPLEMENTED 540
 #define AMQP_INTERNAL_ERROR 541
 #define AMQP_BASIC_PROPERTIES_CLASS_ID 60
+#define AMQ_RABBITMQ_REPLY_TO @"amq.rabbitmq.reply-to"
 
 @interface AMQPMethod:NSObject
 -(instancetype)initWithInputStream:(AMQPInputStream *)inputStream;

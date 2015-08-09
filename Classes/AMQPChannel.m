@@ -1,7 +1,20 @@
-//
-// Created by fireflyc 
-//
-
+/*
+ * Copyright 2015 The original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * @author fireflyc
+ */
 #import "AMQPChannel.h"
 
 @implementation Envelope {
@@ -18,6 +31,11 @@
 @property AMQPConsume *activeConsume;
 @end
 
+/**
+* In AMQP
+* 0-9-1, all arguments aside from nowait are ignored; and sending
+* nowait makes this method a no-op, so we default it to false.
+* */
 @implementation AMQPChannel {
 
 }
@@ -49,17 +67,9 @@
     QueueDeclare *queueDeclare = [[QueueDeclare alloc] initWithTicket:0 queue:theName passive:passive durable:durable
                                                             exclusive:exclusive autoDelete:autoDelete nowait:nowait
                                                             arguments:arguments];
-    if (nowait) {
-        [self writeCommand:[AMQPCommand commandWithMethod:queueDeclare] error:error];
-        return TRUE;
-    } else {
-        AMQPCommand *command = [self rpcCommand:[AMQPCommand commandWithMethod:queueDeclare] error:error];
-        BOOL result = [self.connection checkReplyCommand:command error:error];
-        if (result && ok != NULL) {
-            *ok = (QueueDeclareOk *) command.method;
-        }
-        return result;
-    }
+
+    [self writeCommand:[AMQPCommand commandWithMethod:queueDeclare] error:error];
+    return TRUE;
 }
 
 - (BOOL)queueDeclare:(NSString *)queue isDurable:(BOOL)durable isExclusive:(BOOL)exclusive autoDeleted:(BOOL)deleted
@@ -85,31 +95,26 @@
     ExchangeDeclare *exchangeDeclare = [[ExchangeDeclare alloc] initWithTicket:0 exchange:theName type:theType passive:passive
                                                                        durable:durable autoDelete:autoDelete internal:false
                                                                         nowait:nowait arguments:nil];
-    if (nowait) {
-        [self writeCommand:[AMQPCommand commandWithMethod:exchangeDeclare] error:error];
-        return TRUE;
-    } else {
-        AMQPCommand *command = [self rpcCommand:[AMQPCommand commandWithMethod:exchangeDeclare] error:error];
-        return [self.connection checkReplyCommand:command error:error];
-    }
+    [self writeCommand:[AMQPCommand commandWithMethod:exchangeDeclare] error:error];
+    return TRUE;
 }
 
 - (BOOL)directExchangeWithName:(NSString *)theName isPassive:(BOOL)passive isDurable:(BOOL)durable
                     autoDelete:(BOOL)autoDelete error:(NSError **)error {
     return [self exchangeDeclareOfType:@"direct" withName:theName isPassive:passive isDurable:durable autoDelete:autoDelete
-                                nowait:TRUE error:error];
+                                nowait:FALSE error:error];
 }
 
 - (BOOL)topicExchangeWithName:(NSString *)theName isPassive:(BOOL)passive isDurable:(BOOL)durable autoDelete:(BOOL)
         autoDelete      error:(NSError **)error {
     return [self exchangeDeclareOfType:@"topic" withName:theName isPassive:passive isDurable:durable autoDelete:autoDelete
-                                nowait:TRUE error:error];
+                                nowait:FALSE error:error];
 }
 
 - (BOOL)fanoutExchangeWithName:(NSString *)theName isPassive:(BOOL)passive isDurable:(BOOL)durable
                     autoDelete:(BOOL)autoDelete error:(NSError **)error {
     return [self exchangeDeclareOfType:@"fanout" withName:theName isPassive:passive isDurable:durable autoDelete:autoDelete
-                                nowait:TRUE error:error];
+                                nowait:FALSE error:error];
 }
 
 - (BOOL)exchangeWithName:(NSString *)theName error:(NSError **)error {
@@ -234,10 +239,24 @@
         if (![self writeFrame:headerFrame error:error]) {
             return FALSE;
         }
-        AMQPFrame *bodyFrame = [[AMQPFrame alloc] initWithFrameType:AMQP_FRAME_BODY channelNumber:self.channel
-                                                        payloadType:AMQPFramePayloadTypeBody payload:command.body];
-        if (![self writeFrame:bodyFrame error:error]) {
-            return FALSE;
+
+        int frameMax = (int) self.connection.maxFrame;
+        int bodyPayloadMax = (frameMax == 0) ? (int) command.body.length : (frameMax - AMQP_FRAME_EMPTY_SIZE);
+
+        for (int offset = 0; offset < command.body.length; offset += bodyPayloadMax) {
+            int remaining = command.body.length - offset;
+
+            int fragmentLength = (remaining < bodyPayloadMax) ? remaining
+                    : bodyPayloadMax;
+            NSRange range;
+            range.location = (NSUInteger) offset;
+            range.length = (NSUInteger) fragmentLength;
+            NSData *fragmentBody = [command.body subdataWithRange:range];
+            AMQPFrame *bodyFrame = [[AMQPFrame alloc] initWithFrameType:AMQP_FRAME_BODY channelNumber:self.channel
+                                                            payloadType:AMQPFramePayloadTypeBody payload:fragmentBody];
+            if (![self writeFrame:bodyFrame error:error]) {
+                return FALSE;
+            }
         }
     }
     return TRUE;
@@ -277,7 +296,7 @@
                 [consume handlerFrame:frame];
                 return;
             } else {
-                //在没有收到consumeOk之前可能首先收到BasicDeliver消息,这时候dict没有对应的consumer,所以此处把消息弹回服务器
+                //consumeOk no start....
                 NSError *error = nil;
                 [self basicNAck:deliver.deliveryTag multiple:FALSE requeue:TRUE error:&error];
             }
@@ -341,10 +360,6 @@
     QueueBind *queueBind = [[QueueBind alloc] initWithTicket:0 queue:queue exchange:exchange routingKey:routingKey
                                                       nowait:nowait
                                                    arguments:nil];
-    if (nowait) {
-        [self writeCommand:[AMQPCommand commandWithMethod:queueBind] error:error];
-        return TRUE;
-    }
     AMQPCommand *command = [self rpcCommand:[AMQPCommand commandWithMethod:queueBind] error:error];
     return [self.connection checkReplyCommand:command error:error];
 }
@@ -353,4 +368,17 @@
     return [self queueBind:queue exchange:exchange routingKey:key nowait:FALSE error:error];
 }
 
+- (BOOL)enableFastRpc {
+    NSError *error = nil;
+    return [self queueDeclarePassive:AMQ_RABBITMQ_REPLY_TO error:&error];
+}
+
+- (BOOL)queueDeclarePassive:(NSString *)queue error:(NSError **)error {
+    QueueDeclare *queueDeclare = [[QueueDeclare alloc] initWithTicket:0 queue:queue
+                                                              passive:TRUE durable:FALSE exclusive:TRUE autoDelete:TRUE
+                                                               nowait:FALSE arguments:nil];
+
+    AMQPCommand *command = [self rpcCommand:[AMQPCommand commandWithMethod:queueDeclare] error:error];
+    return [self.connection checkReplyCommand:command error:error];
+}
 @end
