@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name                  = 'LibRabbitMQ-OC'
-  s.version               = 'v1.0.0'
+  s.version               = '1.0.0'
   s.homepage              = 'https://github.com/fireflyc/LibRabbitMQ-OC'
   s.license               = { :type => 'MIT', :file => 'LICENSE' }
   s.author                = { 'fireflyc' => 'fireflyc@126.com' }
