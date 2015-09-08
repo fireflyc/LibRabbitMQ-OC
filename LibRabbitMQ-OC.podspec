@@ -6,7 +6,7 @@ Pod::Spec.new do |s|
   s.author                = { 'fireflyc' => 'fireflyc@126.com' }
   s.ios.deployment_target = '6.0'
   s.osx.deployment_target = '10.7'
-  s.source                = { :git => 'https://github.com/fireflyc/LibRabbitMQ-OC.git', :tag => 's.version' }
+  s.source                = { :git => 'https://github.com/fireflyc/LibRabbitMQ-OC.git', :tag => 'master' }
   s.source_files          = 'LibRabbitMQ-OC/Classes'
   s.requires_arc          = true
   s.summary               = 'RabbitMQ Objective-C Client'
