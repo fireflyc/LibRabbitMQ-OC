@@ -57,7 +57,6 @@ def generateH(specPath):
         print '#define AMQP_%s %s' % (oc_constant_name(c), v)
 
     print '#define AMQP_BASIC_PROPERTIES_CLASS_ID 60'
-    print '#define AMQ_RABBITMQ_REPLY_TO @"amq.rabbitmq.reply-to"'
     print """
 @interface AMQPMethod:NSObject
 -(instancetype)initWithInputStream:(AMQPInputStream *)inputStream;

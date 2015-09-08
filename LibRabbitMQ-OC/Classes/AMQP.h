@@ -35,7 +35,6 @@
 #define AMQP_NOT_IMPLEMENTED 540
 #define AMQP_INTERNAL_ERROR 541
 #define AMQP_BASIC_PROPERTIES_CLASS_ID 60
-#define AMQ_RABBITMQ_REPLY_TO @"amq.rabbitmq.reply-to"
 
 @interface AMQPMethod:NSObject
 -(instancetype)initWithInputStream:(AMQPInputStream *)inputStream;
