@@ -10,6 +10,7 @@ Pod::Spec.new do |s|
   s.source_files          = 'LibRabbitMQ-OC/Classes'
   s.requires_arc          = true
   s.summary               = 'RabbitMQ Objective-C Client'
+  s.dependency            = 'CocoaAsyncSocket'
   s.description  = <<-DESC
 	  # LibRabbitMQ-OC
 	  RabbitMQ Objective C Client
