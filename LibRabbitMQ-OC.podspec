@@ -2,7 +2,7 @@ Pod::Spec.new do |s|
   s.name                  = 'LibRabbitMQ-OC'
   s.version               = '1.0.0'
   s.homepage              = 'https://github.com/fireflyc/LibRabbitMQ-OC'
-  s.license               = { :type => 'MIT', :file => 'LICENSE' }
+  s.license               = { :type => 'Apache', :file => 'LICENSE' }
   s.author                = { 'fireflyc' => 'fireflyc@126.com' }
   s.ios.deployment_target = '6.0'
   s.osx.deployment_target = '10.7'
@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
   s.source_files          = 'LibRabbitMQ-OC/Classes'
   s.requires_arc          = true
   s.summary               = 'RabbitMQ Objective-C Client'
-  s.dependency            = 'CocoaAsyncSocket'
+  s.dependency 'CocoaAsyncSocket'
   s.description  = <<-DESC
 	  # LibRabbitMQ-OC
 	  RabbitMQ Objective C Client
