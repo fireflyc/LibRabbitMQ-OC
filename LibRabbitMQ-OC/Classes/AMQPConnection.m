@@ -88,7 +88,7 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
         dispatch_time_t tt = dispatch_time(DISPATCH_TIME_NOW, (int64_t) (timeout * NSEC_PER_SEC));
         dispatch_semaphore_wait(self.connectionSemaphore, tt);
         if (!self.socket.isConnected) {
-            *error = [self.socket connectTimeoutError];
+            //*error = [self.socket connectTimeoutError];
             return FALSE;
         }
         return [self loginWithError:error];
@@ -302,6 +302,7 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
 }
 
 - (void)logout {
+    [self shutdownHeartbeat];
     NSError *error = NULL;
     ConnectionClose *connectionClose = [[ConnectionClose alloc] initWithReplyCode:AMQP_REPLY_SUCCESS replyText:@"OK"
                                                                           classId:0 methodId:0];
