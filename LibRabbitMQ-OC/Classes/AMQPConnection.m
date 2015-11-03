@@ -261,8 +261,12 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
             }
         }
         [inputStream AMQPReadUInt8]; //always AMQP_FRAME_END
+        NSUInteger bufferLength = 0;
+        if (self.readBuffer.length > (frame.payloadSize + self.minFrameSize)) {
+            bufferLength = self.readBuffer.length - (frame.payloadSize + self.minFrameSize);
+        }
         self.readBuffer = [NSMutableData dataWithBytes:self.readBuffer.bytes + (frame.payloadSize + self.minFrameSize)
-                                                length:self.readBuffer.length - (frame.payloadSize + self.minFrameSize)];
+                                                length:bufferLength];
     }
     if (self.isLogin) {
         [self.socket readDataWithTimeout:-1 buffer:[NSMutableData new] bufferOffset:0 tag:0];
