@@ -105,13 +105,13 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
     long loginTag = 0;
     self.mainChannel = [[AMQPChannel alloc] initWithChannel:(UInt16) loginTag connection:self];
     [self.channelMap setValue:self.mainChannel forKey:[NSString stringWithFormat:@"%ld", loginTag]];
+    BlockingQueue *blockingQueue = [BlockingQueue new];
+    [self.mainChannel enqueueRpc:blockingQueue];
+
     [self.socket writeData:
                     [NSData dataWithBytes:header length:sizeof(header)]
                withTimeout:self.writeTimeout
                        tag:loginTag];
-
-    BlockingQueue *blockingQueue = [BlockingQueue new];
-    [self.mainChannel enqueueRpc:blockingQueue];
     //first read
     [self.socket readDataWithTimeout:self.readTimeout tag:loginTag];
 
