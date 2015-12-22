@@ -351,21 +351,59 @@
     return FALSE;
 }
 
+- (BOOL)writeCommandWithMethod:(AMQPMethod *)method nowait:(BOOL)nowait error:(NSError **)error {
+    if (nowait) {
+        [self writeCommand:[AMQPCommand commandWithMethod:method] error:error];
+        return TRUE;
+    }
+    AMQPCommand *command = [self rpcCommand:[AMQPCommand commandWithMethod:method] error:error];
+    return [self.connection checkReplyCommand:command error:error];
+}
+
 - (BOOL)queueBind:(NSString *)queue exchange:(NSString *)exchange routingKey:(NSString *)routingKey nowait:(BOOL)nowait
             error:(NSError **)error {
     QueueBind *queueBind = [[QueueBind alloc] initWithTicket:0 queue:queue exchange:exchange routingKey:routingKey
                                                       nowait:nowait
                                                    arguments:nil];
-    if (nowait) {
-        [self writeCommand:[AMQPCommand commandWithMethod:queueBind] error:error];
-        return TRUE;
-    }
-    AMQPCommand *command = [self rpcCommand:[AMQPCommand commandWithMethod:queueBind] error:error];
-    return [self.connection checkReplyCommand:command error:error];
+    return [self writeCommandWithMethod:queueBind nowait:nowait error:error];
 }
 
 - (BOOL)queueBind:(NSString *)queue exchange:(NSString *)exchange routingKey:(NSString *)key error:(NSError **)error {
     return [self queueBind:queue exchange:exchange routingKey:key nowait:FALSE error:error];
 }
 
+- (BOOL)queueUnbind:(NSString *)queue exchange:(NSString *)exchange routingKey:(NSString *)routingKey
+          arguments:(NSDictionary *)arguments error:(NSError **)error {
+    QueueUnbind *queueUnbind = [[QueueUnbind alloc] initWithTicket:0 queue:queue exchange:exchange
+                                                        routingKey:routingKey arguments:arguments];
+    return [self writeCommandWithMethod:queueUnbind nowait:TRUE error:error];
+}
+
+- (BOOL)queueUnbind:(NSString *)queue exchange:(NSString *)exchange routingKey:(NSString *)key error:(NSError **)error {
+    return [self queueUnbind:queue exchange:exchange routingKey:key arguments:nil error:error];
+}
+
+- (BOOL)exchangeBind:(NSString *)destination source:(NSString *)source routingKey:(NSString *)routingKey nowait:(BOOL)nowait
+            error:(NSError **)error {
+    ExchangeBind *exchangeBind = [[ExchangeBind alloc] initWithTicket:0 destination:destination source:source
+                                                           routingKey:routingKey nowait:nowait arguments:nil];
+    return [self writeCommandWithMethod:exchangeBind nowait:nowait error:error];
+}
+
+- (BOOL)exchangeBind:(NSString *)destination source:(NSString *)source routingKey:(NSString *)routingKey
+               error:(NSError **)error {
+    return [self exchangeBind:destination source:source routingKey:routingKey nowait:FALSE error:error];
+}
+
+- (BOOL)exchangeUnbind:(NSString *)destination source:(NSString *)source routingKey:(NSString *)routingKey nowait:(BOOL)nowait
+               error:(NSError **)error {
+    ExchangeUnbind *exchangeUnbind = [[ExchangeUnbind alloc] initWithTicket:0 destination:destination source:source
+                                                           routingKey:routingKey nowait:nowait arguments:nil];
+    return [self writeCommandWithMethod:exchangeUnbind nowait:nowait error:error];
+}
+
+- (BOOL)exchangeUnbind:(NSString *)destination source:(NSString *)source routingKey:(NSString *)routingKey
+               error:(NSError **)error {
+    return [self exchangeUnbind:destination source:source routingKey:routingKey nowait:FALSE error:error];
+}
 @end

@@ -87,5 +87,19 @@
 
 - (BOOL)queueDeclareForRPC:(QueueDeclareOk **)queueDeclareOk error:(NSError **)error;
 
+- (BOOL)queueBind:(NSString *)queue exchange:(NSString *)exchange routingKey:(NSString *)routingKey nowait:(BOOL)nowait error:(NSError **)error;
+
 - (BOOL)queueBind:(NSString *)queue exchange:(NSString *)exchange routingKey:(NSString *)key error:(NSError **)error;
+
+- (BOOL)queueUnbind:(NSString *)queue exchange:(NSString *)exchange routingKey:(NSString *)routingKey arguments:(NSDictionary *)arguments error:(NSError **)error;
+
+- (BOOL)queueUnbind:(NSString *)queue exchange:(NSString *)exchange routingKey:(NSString *)key error:(NSError **)error;
+
+- (BOOL)exchangeBind:(NSString *)destination source:(NSString *)source routingKey:(NSString *)routingKey nowait:(BOOL)nowait error:(NSError **)error;
+
+- (BOOL)exchangeBind:(NSString *)destination source:(NSString *)source routingKey:(NSString *)routingKey error:(NSError **)error;
+
+- (BOOL)exchangeUnbind:(NSString *)destination source:(NSString *)source routingKey:(NSString *)routingKey nowait:(BOOL)nowait error:(NSError **)error;
+
+- (BOOL)exchangeUnbind:(NSString *)destination source:(NSString *)source routingKey:(NSString *)routingKey error:(NSError **)error;
 @end
