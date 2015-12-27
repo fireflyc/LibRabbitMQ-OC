@@ -26,6 +26,7 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
 @end
 
 @implementation AMQPConnection {
+    BOOL heartBeating_;
 }
 - (instancetype)initWithHost:(NSString *)host port:(UInt16)port heartbeat:(UInt16)heartbeat
                     userName:(NSString *)userName password:(NSString *)password vHost:(NSString *)vHost
@@ -49,8 +50,8 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
         self.channelMap = [NSMutableDictionary new];
         self.connectionSemaphore = dispatch_semaphore_create(0);
 
-        self.writeTimeout = 5;
-        self.readTimeout = 5;
+        self.writeTimeout = 10;
+        self.readTimeout = 10;
         self.maxChannel = UINT16_MAX;
         self.nextChannel = 1;
         self.maxFrame = 131072; //最小128k
@@ -60,13 +61,21 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
                 dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0));
 
         dispatch_source_set_timer(self.heartBeatTimer, dispatch_walltime(nil, 0),
-                (UInt64) (self.heartbeat * NSEC_PER_SEC), 0);
+                (UInt64) (self.heartbeat * NSEC_PER_SEC / 2), 0);
         __block AMQPConnection *weakSelf = self;
         dispatch_source_set_event_handler(self.heartBeatTimer, ^{
             if (!weakSelf.socket.isConnected) {
                 NSError *error = nil;
                 if (![weakSelf connectionWithTimeout:3 error:&error]) {
                     NSLog(@"Connection Error %@", error);
+                    //wait for socket disconnect
+                    [weakSelf stopHeartbeat];
+                    dispatch_time_t tt = dispatch_time(DISPATCH_TIME_NOW, (int64_t) (self.heartbeat * NSEC_PER_SEC));
+                    dispatch_semaphore_wait(weakSelf.connectionSemaphore, tt);
+                    if (weakSelf.isLogin) {
+                        [weakSelf startHeartbeat];
+                    }
+                    return;
                 }else{
                     [weakSelf.lifecycleDelegate reconnectionSuccess:weakSelf.userName :weakSelf];
                 }
@@ -79,6 +88,7 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
                 NSLog(@"Hearbeat fail %@", error);
             }
         });
+        heartBeating_ = NO;
     }
     return self;
 }
@@ -88,7 +98,6 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
         dispatch_time_t tt = dispatch_time(DISPATCH_TIME_NOW, (int64_t) (timeout * NSEC_PER_SEC));
         dispatch_semaphore_wait(self.connectionSemaphore, tt);
         if (!self.socket.isConnected) {
-            //*error = [self.socket connectTimeoutError];
             return FALSE;
         }
         return [self loginWithError:error];
@@ -162,6 +171,7 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
         *error = [self AMQPErrorWith:@"Authentication Error" code:0];
         return FALSE;
     }
+    self.isLogin = YES;
     return TRUE;
 }
 
@@ -192,14 +202,20 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
 
 - (void)socket:(GCDAsyncSocket *)sock didConnectToHost:(NSString *)host port:(uint16_t)port {
     dispatch_semaphore_signal(self.connectionSemaphore);
+    self.nextChannel = 1;
 }
 
 - (void)socketDidDisconnect:(GCDAsyncSocket *)sock withError:(NSError *)err {
+    NSLog(@"Connection disconnect %@", err);
     if (err.code == GCDAsyncSocketConnectTimeoutError) {
         dispatch_semaphore_signal(self.connectionSemaphore);
-        return;
+    } else if (err.code == GCDAsyncSocketClosedError || err.code == 32) {
+        //32 Broke pipe
+        [self shutdownHeartbeat];
+        self.isLogin = NO;
+        dispatch_semaphore_signal(self.connectionSemaphore);
+        [self.lifecycleDelegate needReconnection:err];
     }
-    NSLog(@"Connection disconnect %@", err);
 }
 
 - (void)socket:(GCDAsyncSocket *)sock didReadData:(NSData *)data withTag:(long)tag {
@@ -217,7 +233,6 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
             break;
         }
         AMQPChannel *channel = [self.channelMap valueForKey:[NSString stringWithFormat:@"%d", frame.channelNumber]];
-        AMQPFrame *heartbeatFrame = [[AMQPFrame alloc] init];
         switch (frame.frameType) {
             case AMQP_FRAME_METHOD: {
                 frame.payloadType = AMQPFramePayloadTypeMethod;
@@ -248,11 +263,7 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
                 break;
             }
             case AMQP_FRAME_HEARTBEAT: {
-                heartbeatFrame.frameType = AMQP_FRAME_HEARTBEAT;
-                NSError *error;
-                if (![self.mainChannel writeFrame:heartbeatFrame error:&error]) {
-                    NSLog(@"Hearbeat fail %@", error);
-                }
+                // Ignore it: we've already just set the heartbeat timer.
                 break;
             }
             default: {
@@ -269,9 +280,9 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
                                                 length:bufferLength];
     }
     if (self.isLogin) {
-        [self.socket readDataWithTimeout:-1 buffer:[NSMutableData new] bufferOffset:0 tag:0];
+        [self.socket readDataWithTimeout:-1 buffer:[NSMutableData new] bufferOffset:0 tag:tag];
     } else {
-        [self.socket readDataWithTimeout:self.readTimeout buffer:[NSMutableData new] bufferOffset:0 tag:0];
+        [self.socket readDataWithTimeout:self.readTimeout buffer:[NSMutableData new] bufferOffset:0 tag:tag];
     }
 }
 
@@ -313,23 +324,32 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
     AMQPCommand *command = [[AMQPCommand alloc] initWithMethod:connectionClose];
     [self.mainChannel rpcCommand:command error:&error];
     [self.socket disconnect];
+    self.isLogin = NO;
 }
 
 - (void)shutdownHeartbeat {
     if (self.heartbeat > 0) {
+        heartBeating_ = NO;
         dispatch_source_cancel(self.heartBeatTimer);
     }
 }
 
 - (void)stopHeartbeat {
-    if (self.heartbeat > 0) {
+    if (self.heartbeat > 0 && heartBeating_) {
+        heartBeating_ = NO;
         dispatch_suspend(self.heartBeatTimer);
     }
 }
 
 - (void)startHeartbeat {
-    if (self.heartbeat > 0) {
+    if (self.heartbeat > 0 && !heartBeating_) {
+        heartBeating_ = YES;
         dispatch_resume(self.heartBeatTimer);
     }
+}
+
+- (void)didEnterBackground {
+    [self stopHeartbeat];
+    [self.socket disconnect];
 }
 @end
