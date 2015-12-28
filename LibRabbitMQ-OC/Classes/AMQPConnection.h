@@ -16,6 +16,7 @@
 
 @protocol AMQPConnectionLifecycleDelegate
 - (void)reconnectionSuccess:(NSString *)userName :(AMQPConnection *)connection;
+- (void)needReconnection:(NSError *)error;
 @end
 
 @interface AMQPConnection : NSObject <GCDAsyncSocketDelegate>
@@ -51,5 +52,5 @@
 
 - (void)startHeartbeat;
 
-- (void)shutdownHeartbeat;
+- (void)didEnterBackground;
 @end
