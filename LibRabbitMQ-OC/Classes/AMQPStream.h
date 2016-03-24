@@ -7,6 +7,7 @@
 
 @class AMQPBasicProperties;
 
+extern NSString * const MQUnknownTypeKey;
 
 @interface AMQPOutputStream : NSObject
 
@@ -22,9 +23,13 @@
 
 - (void)AMQPWriteLongStr:(NSString *)val;
 
+- (void)AMQPWriteData:(NSData *)data;
+
+- (void)AMQPWriteNSArray:(NSArray *)val;
+
 - (void)AMQPWriteNSDictionary:(NSDictionary *)val;
 
-- (void)AMQPWriteData:(NSData *)data;
+- (void)AMQPWriteElement:(id)obj;
 
 - (void)AMQPWriteProperties:(AMQPBasicProperties *)properties;
 
