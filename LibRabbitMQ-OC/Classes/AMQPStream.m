@@ -6,6 +6,7 @@
 #import "AMQPStream.h"
 #import "AMQP.h"
 
+NSString * const MQUnknownTypeKey = @"MQUnknownType";
 
 @implementation AMQPOutputStream {
 }
@@ -125,14 +126,88 @@
     [self AMQPWriteUInt64:times];
 }
 
+- (void)AMQPWriteNSArray:(NSArray *)val {
+    UInt32 size = val.count;
+    AMQPOutputStream *arrayOut = [AMQPOutputStream new];
+    for (id obj in val) {
+        [arrayOut AMQPWriteElement:obj];
+    }
+    [self AMQPWriteUInt32:size];
+    if (size > 0) {
+        [self AMQPWriteData:arrayOut.data];
+    }
+}
+
 - (void)AMQPWriteNSDictionary:(NSDictionary *)val {
-    [self AMQPWriteUInt32:0];//太麻烦了
-    /*AMQPOutputStream *dictOut = [AMQPOutputStream new];
+    UInt32 len = 0;
+    AMQPOutputStream *dictOut = [AMQPOutputStream new];
     for (NSString *key in [val allKeys]){
         [dictOut AMQPWriteShortStr:key];
+        [dictOut AMQPWriteElement:val[key]];
     }
-    [self AMQPWriteUInt32:<#(UInt32)val#>];*/
+    len = dictOut.data.length;
+    [self AMQPWriteUInt32:len];
+    if (len > 0) {
+        [self AMQPWriteData:dictOut.data];
+    }
+}
 
+- (void)AMQPWriteElement:(id)obj {
+    if (obj == nil || obj == [NSNull null]) {
+        [self AMQPWriteUInt8:'V'];
+        return;
+    }
+    if ([obj isKindOfClass:[NSString class]]) {
+        [self AMQPWriteUInt8:'S'];
+        [self AMQPWriteLongStr:obj];
+    } else if ([obj isKindOfClass:[NSNumber class]]) {
+        NSNumber *number = obj;
+        if ((id)number == (id)kCFBooleanTrue || (id)number == (id)kCFBooleanFalse) {
+            [self AMQPWriteUInt8:'b'];
+            [self AMQPWriteUInt8:number.boolValue];
+            return;
+        }
+        CFNumberType numberType = CFNumberGetType((__bridge CFNumberRef)number);
+        switch (numberType)	{
+            case kCFNumberFloat32Type:
+            case kCFNumberFloatType:
+            case kCFNumberCGFloatType: {
+                [self AMQPWriteUInt8:'f'];
+                [self AMQPWriteUInt32:number.floatValue];
+            }
+                return;
+            case kCFNumberFloat64Type:
+            case kCFNumberDoubleType: {
+                [self AMQPWriteUInt8:'d'];
+                [self AMQPWriteUInt64:number.doubleValue];
+            }
+                return;
+            default:
+                break;
+        }
+        [self AMQPWriteUInt8:'l'];
+        if ([number compare:@(0)] >= 0) {
+            [self AMQPWriteUInt64:number.unsignedLongLongValue];
+        } else {
+            [self AMQPWriteUInt64:number.longLongValue];
+        }
+    } else if ([obj isKindOfClass:[NSDate class]]) {
+        [self AMQPWriteUInt8:'T'];
+        [self AMQPWriteDate:obj];
+    } else if ([obj isKindOfClass:[NSData class]]) {
+        [self AMQPWriteUInt8:'x'];
+        [self AMQPWriteUInt32:((NSData *)obj).length];
+        [self AMQPWriteData:obj];
+    } else if ([obj isKindOfClass:[NSDictionary class]]) {
+        [self AMQPWriteUInt8:'F'];
+        [self AMQPWriteNSDictionary:obj];
+    } else if ([obj isKindOfClass:[NSArray class]]) {
+        [self AMQPWriteUInt8:'A'];
+        [self AMQPWriteNSArray:obj];
+    } else {
+        NSString *reason = [NSString stringWithFormat:@"Unable to write object: %@", [obj class]];
+        @throw [NSException exceptionWithName:@"AMQPWriteException" reason:reason userInfo:@{MQUnknownTypeKey: obj}];
+    }
 }
 
 - (instancetype)init {
