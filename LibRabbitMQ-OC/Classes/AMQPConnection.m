@@ -318,13 +318,20 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
 
 - (void)logout {
     [self shutdownHeartbeat];
+    [self close];
+    self.isLogin = NO;
+}
+
+- (void)close {
     NSError *error = NULL;
     ConnectionClose *connectionClose = [[ConnectionClose alloc] initWithReplyCode:AMQP_REPLY_SUCCESS replyText:@"OK"
                                                                           classId:0 methodId:0];
     AMQPCommand *command = [[AMQPCommand alloc] initWithMethod:connectionClose];
     [self.mainChannel rpcCommand:command error:&error];
+    if (error) {
+        NSLog(@"ConnectionClose %@", error);
+    }
     [self.socket disconnect];
-    self.isLogin = NO;
 }
 
 - (void)shutdownHeartbeat {
@@ -350,6 +357,6 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
 
 - (void)didEnterBackground {
     [self stopHeartbeat];
-    [self.socket disconnect];
+    [self close];
 }
 @end
