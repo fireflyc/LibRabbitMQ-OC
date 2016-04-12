@@ -129,13 +129,18 @@ NSString *const AMQPLibraryErrorDomain = @"AMQPLibraryErrorDomain";
     [blockingQueue clear];
 
     if (command.method == nil) {
-        *error = [self AMQPErrorWith:@"Authentication Error" code:0];
+        *error = [self AMQPErrorWith:@"Header response error" code:0];
         return FALSE;
     }
     ConnectionStart *connectionStart = (ConnectionStart *) command.method;
     ConnectionStartOk *startOk = [[ConnectionStartOk alloc] init];
     startOk.response = [NSString stringWithFormat:@"\0%@%\0%@", self.userName, self.password];
-    startOk.clientProperties = connectionStart.serverProperties;
+    NSMutableDictionary *clientProperties = [NSMutableDictionary dictionary];
+    clientProperties[@"capabilities"] = connectionStart.serverProperties[@"capabilities"];
+    clientProperties[@"platform"] = @"Objective-C";
+    clientProperties[@"product"] = @"LibRabbitMQ-OC";
+    clientProperties[@"information"] = @"Licensed under the Apache.  See https://github.com/fireflyc/LibRabbitMQ-OC";
+    startOk.clientProperties = clientProperties;
     startOk.locale = connectionStart.locales;
     startOk.mechanism = @"PLAIN";
     command = [self.mainChannel rpcCommand:[AMQPCommand commandWithMethod:startOk] error:error];
